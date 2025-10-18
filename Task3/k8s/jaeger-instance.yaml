@@ -4,6 +4,10 @@ metadata:
   name: simplest
 spec:
   strategy: allInOne
+  allInOne:
+    image: jaegertracing/all-in-one:latest
+    options:
+      log-level: debug
   storage:
     type: memory
     options:
