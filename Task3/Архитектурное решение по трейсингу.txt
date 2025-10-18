@@ -4,6 +4,7 @@ II. Системы для покрытия трейсингом
 
  Критические точки отказа в системе
  ----------------------------------
+
  После анализа архитектуры компании "Александрит" выявлены следующие критические места, где заказ может "сломаться" или зависнуть:
 
   1. Онлайн-магазин -> Shop API -> Messages Queue
@@ -36,6 +37,7 @@ II. Системы для покрытия трейсингом
 
  Список данных, которые должны попадать в трейсинг.
  --------------------------------------------------
+
  1. Обязательные данные в каждом спане:
 
   а) trace_id - уникальный идентификатор трейса (сквозной для всех операций заказа)
@@ -125,3 +127,505 @@ III. Мотивация
   4. Стоимость поддержки: снижение на 40% за счет автоматизации диагностики
   5. Конверсия новых B2B-клиентов: рост за счет демонстрации надежности системы
 
+IV. Предлагаемое решение
+
+ Архитектурный подход
+ --------------------
+ Для системы "Александрит" предлагается реализовать распределенный трейсинг на базе стандарта OpenTelemetry с использованием следующего стека:
+
+ Компоненты решения:
+
+  а) OpenTelemetry SDK: для инструментирования всех сервисов;
+  б) OpenTelemetry Collector: для агрегации и обработки телеметрии;
+  в) Jaeger: для хранения и визуализации трейсов;
+  г) Elasticsearch: для долговременного хранения трейсов.
+
+ Инструментирование сервисов
+ ---------------------------
+
+  Shop API (Spring Boot):
+
+   Библиотеки:
+   - opentelemetry-spring-boot-starter
+   - opentelemetry-exporter-otlp
+
+   Инструментируемые операции:
+   - HTTP endpoints (автоматически);
+   - операции с БД (автоматически через JDBC);
+   - публикация в RabbitMQ (вручную);
+   - загрузка файлов в S3 (вручную).
+
+  CRM API (Spring Boot):
+
+   Аналогично Shop API:
+   - opentelemetry-spring-boot-starter
+   - контекст трейса передается через RabbitMQ headers
+
+  MES API (C#):
+
+   Библиотеки:
+   - OpenTelemetry.Instrumentation.AspNetCore
+   - OpenTelemetry.Instrumentation.EntityFrameworkCore
+   - OpenTelemetry.Exporter.OpenTelemetryProtocol
+
+   Особенности:
+   - длительные операции расчета стоимости требуют heartbeat-спанов
+
+  Frontend приложения (Vue, React):
+
+   Библиотеки:
+   - @opentelemetry/sdk-trace-web
+   - @opentelemetry/instrumentation-fetch
+
+   Собираемые данные:
+   - User interactions
+   - API calls
+   - Page load times
+
+  RabbitMQ:
+
+   Подход:
+   - передача trace context через message headers;
+   - использование W3C Trace Context format;
+   - связывание продюсера и консюмера через parent_span_id.
+
+   Архитектура трейсинга
+   ---------------------
+
+   Компоненты:
+
+   1. OpenTelemetry Collector (новый контейнер)
+      - прием данных от всех сервисов;
+      - батчинг и сэмплинг;
+      - экспорт в Jaeger и Elasticsearch.
+
+   2. Jaeger All-in-One (новый контейнер)
+      - query Service для UI;
+      - collector для приема трейсов;
+      - storage (Cassandra или Elasticsearch).
+
+   3. Jaeger UI (веб-интерфейс)
+      - доступен для всех членов команды и поддержки;
+      - поиск трейсов по order_id, user_id, time range;
+      - визуализация dependency graph.
+
+   Новые связи:
+
+    Shop API -> OpenTelemetry Collector
+    CRM API -> OpenTelemetry Collector
+    MES API -> OpenTelemetry Collector
+    Internet Shop -> OpenTelemetry Collector
+    MES (React) -> OpenTelemetry Collector
+    CRM (Vue) -> OpenTelemetry Collector
+
+    OpenTelemetry Collector -> Jaeger Collector
+    OpenTelemetry Collector -> Elasticsearch
+
+   Propagation контекста трейсинга
+   -------------------------------
+
+   Через HTTP:
+   ___________
+
+    Headers:
+    - traceparent: 00-{trace-id}-{span-id}-{flags}
+    - tracestate: {vendor-specific}
+
+   Через RabbitMQ:
+   ---------------
+
+    Message Properties:
+    - headers.traceparent
+    - headers.tracestate
+    - headers.order_id (для корреляции)
+
+   Сэмплинг стратегия
+   ------------------
+
+    Для Production:
+    - Head-based sampling: 100% заказов с ошибками;
+    - Head-based sampling: 10% успешных заказов для baseline;
+    - Tail-based sampling: 100% заказов дольше 5 минут;
+    - Tail-based sampling: 100% заказов от B2B API.
+
+    Retention policy:
+    - Трейсы с ошибками: 90 дней;
+    - Успешные трейсы: 30 дней;
+    - Агрегированные метрики: 1 год.
+
+   Пример трейса заказа
+   --------------------
+
+    Trace ID: a1b2c3d4e5f6g7h8
+    ├─ Shop API: POST /orders (span_id: s1)
+    │  ├─ Validate user (span_id: s2, parent: s1)
+    │  ├─ Save to Shop DB (span_id: s3, parent: s1)
+    │  ├─ Upload file to S3 (span_id: s4, parent: s1)
+    │  └─ Publish to RabbitMQ (span_id: s5, parent: s1)
+    │
+    ├─ RabbitMQ: order.created queue (span_id: s6, parent: s5)
+    │
+    ├─ MES API: Calculate price (span_id: s7, parent: s6)
+    │  ├─ Fetch file from S3 (span_id: s8, parent: s7)
+    │  ├─ Parse 3D model (span_id: s9, parent: s7)
+    │  ├─ Calculate cost (span_id: s10, parent: s7)
+    │  ├─ Save to MES DB (span_id: s11, parent: s7)
+    │  └─ Publish to RabbitMQ (span_id: s12, parent: s7)
+    │
+    ├─ RabbitMQ: order.priced queue (span_id: s13, parent: s12)
+    │
+    └─ CRM API: Receive price (span_id: s14, parent: s13)
+       └─ Update Shop DB (span_id: s15, parent: s14)
+
+   Интеграция с существующими системами
+   ------------------------------------
+
+    Логирование:
+    - добавление trace_id и span_id в каждую лог-запись;
+    - корреляция логов с трейсами в Elasticsearch.
+
+    Метрики:
+    - автоматические метрики из трейсов (RED: Rate, Errors, Duration);
+    - Service-level metrics.
+
+   Алертинг (дополнительное задание):
+   __________________________________
+
+   Alerting Rules:
+
+   1. Alert Manager (новый контейнер)
+      - Получает алерты от Jaeger через webhooks;
+      - Routing и группировка алертов;
+      - Отправка в Telegram/Email/SMS.
+
+   2. Alerting Rules:
+      а) Order stuck alert:
+         - Trigger: заказ не меняет статус >30 минут;
+         - Severity: HIGH;
+         - Action: уведомление в Telegram канал поддержки.
+
+      б) Message loss alert:
+         - Trigger: нет child span для published message за 5 минут;
+         - Severity: CRITICAL;
+         - Action: PagerDuty для дежурного инженера.
+
+      в) High error rate alert:
+         - Trigger: >5% трейсов с ошибками за 10 минут;
+         - Severity: HIGH;
+         - Action: уведомление команды разработки.
+
+      г) SLA breach alert:
+         - Trigger: операция превышает p99 latency;
+         - Severity: MEDIUM;
+         - Action: уведомление в Slack.
+
+      д) B2B API degradation:
+         - Trigger: >1% ошибок от B2B клиентов;
+         - Severity: CRITICAL;
+         - Action: немедленное эскалирование.
+
+   3. Order State Monitor (новый сервис):
+      - читает трейсы из Jaeger API;
+      - отслеживает прогресс каждого заказа;
+      - автоматически создает тикеты для зависших заказов;
+      - dashboard с real-time статусом всех заказов.
+
+   4. Новые связи:
+      Jaeger -> Alert Manager
+      Alert Manager -> Slack
+      Alert Manager -> PagerDuty
+      Alert Manager -> Order State Monitor
+      Order State Monitor -> Ticketing System
+
+ Dashboard для бизнеса
+ =====================
+
+  Order Tracking Dashboard:
+  -------------------------
+   Поиск заказа по номеру
+   Визуальная timeline прохождения
+   Текущий статус и ожидаемое время завершения
+   История всех операций
+
+  Operations Dashboard:
+  ---------------------
+   Количество заказов по статусам
+   Средняя длительность каждого этапа
+   Bottlenecks в реальном времени
+   Error rate по сервисам
+
+ План внедрения
+ ==============
+
+  Phase 1 (2 недели) - MVP:
+  -------------------------
+
+   Развертывание Jaeger и OpenTelemetry Collector
+   Инструментирование Shop API и MES API
+   Базовая визуализация трейсов
+
+  Phase 2 (2 недели) - Full Coverage:
+  -----------------------------------
+
+   Инструментирование CRM API
+   Добавление frontend трейсинга
+   Интеграция с RabbitMQ
+
+  Phase 3 (1 неделя) - Production Ready:
+  --------------------------------------
+
+   Настройка сэмплинга
+   Настройка retention policies
+   Security и access control
+   Documentation и обучение команды
+
+  Phase 4 (2 недели) - Advanced Features (опционально):
+  -----------------------------------------------------
+
+   Автоматический алертинг
+   Order State Monitor
+   Интеграция с системой тикетов
+   Dashboards для бизнеса
+
+ Обновленная C4-диаграмма
+ ========================
+
+  Файл с обновленной диаграммой будет доступен по ссылке:
+  jewerly_c4_model_with_tracing.drawio
+
+  Базовый трейсинг:
+
+   OpenTelemetry Collector;
+   Jaeger All-in-One;
+   Jaeger UI;
+   Connections от всех сервисов к Collector.
+
+  Автоматический мониторинг - доп. задание:
+
+   Alert Manager;
+   Order State Monitor;
+   Connections к системам оповещения.
+
+V. Компромиссы
+
+ Случаи, когда трейсинг не принесет пользы или невозможен
+
+ 1. Legacy компоненты с закрытым кодом:
+
+  Проблема: MES была куплена как проприетарное ПО. Если в MES есть закрытые модули или библиотеки, их автоматическое инструментирование может быть невозможно.
+
+  Компромисс:
+   Инструментировать только точки входа и выхода из проприетарных компонентов
+   Использовать wrapper-подход: обернуть вызовы в instrumented код
+   Договориться с вендором о предоставлении hooks для трейсинга
+
+ 2. RabbitMQ как "черный ящик":
+
+  Проблема: Сложно отследить путь сообщения внутри RabbitMQ (между exchange, queue, routing).
+
+  Компромисс:
+   Трейсим только вход (publish) и выход (consume)
+   Используем correlation ID для связи
+   Пропускаем детали internal routing
+
+ 3. S3 Storage:
+
+  Проблема: S3-compatible storage может не поддерживать передачу trace context.
+
+  Компромисс:
+   Создаем искусственный спан на стороне клиента
+   Трейсим только время загрузки/скачивания
+   Не видим internal processing в S3
+
+ 4. Высокая нагрузка и overhead:
+
+  Проблема: При росте до нескольких тысяч заказов в день, отправка 100% трейсов может создать значительную нагрузку на сеть и storage.
+
+  Компромисс:
+   Aggressive sampling для успешных операций (10%)
+   Всегда трейсим ошибки (100%)
+   Tail-based sampling для критичных операций
+   Стоимость: Можем пропустить редкие проблемы в не-сэмплированных трейсах
+
+ 5. Чувствительные данные:
+
+  Проблема: 3D-модели клиентов, персональные данные не должны попадать в трейсы.
+
+  Компромисс:
+   Фильтрация PII data из спанов
+   Использование hash вместо real values для sensitive fields
+   Отдельная политика для sensitive traces
+   Стоимость: Усложнение дебаггинга в случае проблем с конкретными данными
+
+ 6. Синхронизация времени:
+
+  Проблема: Разное системное время на разных серверах может искажать timeline трейса.
+
+  Компромисс:
+   Обязательная настройка NTP на всех серверах
+   Использование logical clocks (HLC) для ordering
+   Стоимость: Дополнительная инфраструктурная работа
+
+ 7. Дорогостоящее хранение:
+
+  Проблема: Хранение всех трейсов с высокой детализацией требует значительных ресурсов Elasticsearch/Cassandra.
+
+  Компромисс:
+   Tiered storage: hot (7 дней), warm (23 дня), cold (60 дней)
+   Агрегирование старых трейсов
+   Retention только критичных трейсов надолго
+   Стоимость: ~$500-1000/месяц на infrastructure
+
+ 8. Learning curve для команды:
+
+  Проблема: Команде нужно обучиться работе с трейсингом, что требует времени.
+
+  Компромисс:
+   Постепенное внедрение (phase approach)
+   Обучающие сессии (4-6 часов)
+   Documentation и best practices
+   Стоимость: 1-2 недели сниженной production productivity
+
+VI. Безопасность
+
+ Меры предотвращения несанкционированного доступа
+
+ 1. Аутентификация и авторизация:
+
+  Jaeger UI:
+
+   Интеграция с корпоративным OAuth2/OIDC (например, Keycloak)
+
+   Роли доступа:
+    trace.viewer - просмотр трейсов (поддержка, QA)
+    trace.admin - настройка системы (DevOps, архитекторы)
+    trace.developer - просмотр + экспорт данных (разработчики)
+
+   Single Sign-On с корпоративным Active Directory
+
+ 2. Network Security:
+
+ Jaeger UI:
+   - Доступен только из внутренней сети компании
+   - VPN required для удаленного доступа
+   - Firewall rules:
+       allow: 10.0.0.0/8 (internal network)
+       deny: 0.0.0.0/0 (public internet)
+
+ OpenTelemetry Collector:
+   - Принимает данные только от известных сервисов
+   - mTLS для service-to-collector communication
+   - API authentication через tokens
+
+ Jaeger Collector:
+   - Internal-only endpoint
+   - No public exposure
+
+ 3. Data Protection:
+  PII Filtering:
+
+   Автоматическое удаление чувствительных данных из спанов:
+    Email addresses
+    Phone numbers
+    Credit card numbers
+    Personal addresses
+
+  Пример фильтра:
+  --------------------------------
+   processors:
+     attributes:
+       actions:
+         - key: user.email
+           action: delete
+         - key: user.phone
+           action: hash
+         - key: credit_card
+           action: delete
+  --------------------------------
+
+ 4. Audit Logging:
+
+  Логирование доступа:
+    - Кто и когда открывал Jaeger UI
+    - Какие трейсы просматривались
+    - Кто экспортировал данные
+    - Изменения в конфигурации
+
+  Retention: 1 год
+  Storage: Separate audit log system
+
+ 5. Rate Limiting:
+
+  Защита от DDoS и abuse:
+    - Max 100 запросов/минуту на пользователя к Jaeger API
+    - Max 10 экспортов/час на пользователя
+    - Automatic blocking при превышении
+
+ 6. Secrets Management:
+
+  Все credentials хранятся в HashiCorp Vault:
+    - Jaeger database passwords
+    - Elasticsearch credentials
+    - OAuth client secrets
+    - Encryption keys
+
+  Ротация credentials: каждые 90 дней
+
+ 7. Data Retention & Deletion:
+
+  Compliance с GDPR:
+    - Right to be forgotten: удаление всех трейсов пользователя по запросу
+    - Data minimization: сбор только необходимых данных
+    - Автоматическое удаление по истечении retention period
+
+ 8. External Access (для B2B клиентов - опционально):
+
+  Если B2B клиенты хотят видеть трейсы своих заказов:
+
+    Отдельный Jaeger tenant:
+      - Изолированные данные
+      - Доступ только к собственным заказам
+      - Filter по customer_id на уровне query service
+      - Отдельный subdomain: traces-customer.alexandrite.com
+      - API-key based authentication
+      - Rate limiting: 10 req/min
+
+ 9. Monitoring системы трейсинга:
+
+  Self-monitoring:
+    - Алерты на unauthorized access attempts
+    - Алерты на аномальное количество запросов
+    - Алерты на попытки доступа к чужим данным
+    - Dashboard с security metrics
+
+ 10. Security Checklist для Production:
+
+   [ ] OAuth2 интеграция настроена
+   [ ] Firewall rules применены
+   [ ] mTLS между сервисами настроен
+   [ ] PII фильтры активированы
+   [ ] Audit logging включен
+   [ ] Secrets в Vault
+   [ ] Data retention policies настроены
+   [ ] Security monitoring активирован
+   [ ] Penetration testing проведен
+   [ ] Incident response plan готов
+
+Заключение
+
+ Внедрение распределенного трейсинга в систему "Александрит" является критически важным шагом для решения текущих проблем с потерей заказов и непрозрачностью процессов. Предложенное решение на базе OpenTelemetry и Jaeger обеспечит:
+
+ Видимость - полная прозрачность пути заказа через все системы
+ Быструю диагностику - сокращение MTTR с дней до часов
+ Проактивный мониторинг - автоматическое обнаружение проблем
+ Масштабируемость - готовность к росту нагрузки
+ Безопасность - защита чувствительных данных
+
+ Поэтапное внедрение (4 фазы за 7 недель) минимизирует риски и позволит команде постепенно освоить новую технологию.
+
+ Ссылка на обновленную C4 диаграмму компонентов с трейсингом:
+ jewerly_c4_model_tracing.drawio
+
+Были добавлены:
+ - компоненты базового трейсинга
+ - компоненты автоматического мониторинга и алертинга
