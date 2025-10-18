@@ -20,8 +20,8 @@ spec:
             - containerPort: 8080
           env:
             - name: SERVICE_B_URL
-              value: "http://service-b:8081"
-            - name: EXPORTER_OTLP_ENDPOINT
+              value: "http://service-b:8080"
+            - name: EXPORTER_ENDPOINT
               value: "http://simplest-collector:4317"
             - name: PORT
               value: "8080"
@@ -78,7 +78,7 @@ spec:
           ports:
             - containerPort: 8080
           env:
-            - name: EXPORTER_OTLP_ENDPOINT
+            - name: EXPORTER_ENDPOINT
               value: "http://simplest-collector:4317"
             - name: PORT
               value: "8080"

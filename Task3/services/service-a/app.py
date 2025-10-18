@@ -18,7 +18,7 @@ resource = Resource(attributes={
 provider = TracerProvider(resource=resource)
 trace.set_tracer_provider(provider)
 
-jaeger_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://simplest-collector:4317")
+jaeger_endpoint = os.getenv("EXPORTER_ENDPOINT", "http://simplest-collector:4317")
 otlp_exporter = OTLPSpanExporter(
     endpoint=jaeger_endpoint,
     insecure=True
@@ -34,7 +34,7 @@ RequestsInstrumentor().instrument()
 
 tracer = trace.get_tracer(__name__)
 
-SERVICE_B_URL = os.getenv("SERVICE_B_URL", "http://service-b:8081")
+SERVICE_B_URL = os.getenv("SERVICE_B_URL", "http://service-b:8080")
 
 @app.route('/')
 def index():
