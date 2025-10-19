@@ -227,54 +227,8 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <object placeholders="1" c4Name="Alert Manager" c4Type="Container" c4Technology="Prometheus AlertManager" c4Description="Receives alerts from Jaeger, routes and sends notifications" label="&lt;font style=&quot;font-size: 16px&quot;&gt;&lt;b&gt;%c4Name%&lt;/b&gt;&lt;/font&gt;&lt;div&gt;[%c4Type%: %c4Technology%]&lt;/div&gt;&lt;br&gt;&lt;div&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;&lt;font color=&quot;#E6E6E6&quot;&gt;%c4Description%&lt;/font&gt;&lt;/div&gt;" id="MONITORING-1">
-          <mxCell style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;labelBackgroundColor=none;fillColor=#27AE60;fontColor=#ffffff;align=center;arcSize=10;strokeColor=#1E8449;metaEdit=1;resizable=0;strokeWidth=3;" parent="1" vertex="1">
-            <mxGeometry x="1300" y="820" width="240" height="120" as="geometry" />
-          </mxCell>
-        </object>
-        <object placeholders="1" c4Name="Order State Monitor" c4Type="Container" c4Technology="Python Service" c4Description="Monitors order progress through traces, creates tickets for stuck orders" label="&lt;font style=&quot;font-size: 16px&quot;&gt;&lt;b&gt;%c4Name%&lt;/b&gt;&lt;/font&gt;&lt;div&gt;[%c4Type%: %c4Technology%]&lt;/div&gt;&lt;br&gt;&lt;div&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;&lt;font color=&quot;#E6E6E6&quot;&gt;%c4Description%&lt;/font&gt;&lt;/div&gt;" id="MONITORING-2">
-          <mxCell style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;labelBackgroundColor=none;fillColor=#27AE60;fontColor=#ffffff;align=center;arcSize=10;strokeColor=#1E8449;metaEdit=1;resizable=0;strokeWidth=3;" parent="1" vertex="1">
-            <mxGeometry x="880" y="1230" width="240" height="120" as="geometry" />
-          </mxCell>
-        </object>
-        <object placeholders="1" c4Name="Slack / PagerDuty" c4Type="External System" c4Technology="Notification Services" c4Description="Receives alerts and notifications" label="&lt;font style=&quot;font-size: 16px&quot;&gt;&lt;b&gt;%c4Name%&lt;/b&gt;&lt;/font&gt;&lt;div&gt;[%c4Type%]&lt;/div&gt;&lt;br&gt;&lt;div&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;&lt;font color=&quot;#E6E6E6&quot;&gt;%c4Description%&lt;/font&gt;&lt;/div&gt;" id="MONITORING-3">
-          <mxCell style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;dashed=1;fillColor=#27AE60;strokeColor=#1E8449;fontColor=#ffffff;strokeWidth=3;" parent="1" vertex="1">
-            <mxGeometry x="1300" y="1000" width="240" height="100" as="geometry" />
-          </mxCell>
-        </object>
-        <mxCell id="MONITOR-CONN-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#27AE60;strokeWidth=2;dashed=1;endArrow=classic;endFill=1;" parent="1" source="TRACING-2" target="MONITORING-1" edge="1">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points">
-              <mxPoint x="1420" y="600" />
-              <mxPoint x="1420" y="880" />
-            </Array>
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="MONITOR-CONN-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#27AE60;strokeWidth=3;endArrow=classic;endFill=1;" parent="1" source="MONITORING-1" target="MONITORING-3" edge="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="MONITOR-CONN-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#27AE60;strokeWidth=2;dashed=1;endArrow=classic;endFill=1;" parent="1" source="TRACING-2" target="MONITORING-2" edge="1">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points">
-              <mxPoint x="1200" y="520" />
-              <mxPoint x="1200" y="1120" />
-            </Array>
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="MONITOR-CONN-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#27AE60;strokeWidth=2;endArrow=classic;endFill=1;" parent="1" source="MONITORING-2" target="MONITORING-1" edge="1">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points">
-              <mxPoint x="1020" y="1150" />
-              <mxPoint x="1230" y="1150" />
-              <mxPoint x="1230" y="880" />
-            </Array>
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="LEGEND-1" value="RED = Tracing Components" style="text;html=1;strokeColor=#C0392B;fillColor=#E74C3C;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontColor=#ffffff;fontSize=14;fontStyle=1;" parent="1" vertex="1">
-          <mxGeometry x="80" y="1250" width="220" height="40" as="geometry" />
-        </mxCell>
-        <mxCell id="LEGEND-2" value="GREEN = Monitoring &amp; Alerting" style="text;html=1;strokeColor=#1E8449;fillColor=#27AE60;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontColor=#ffffff;fontSize=14;fontStyle=1;" parent="1" vertex="1">
-          <mxGeometry x="80" y="1300" width="220" height="40" as="geometry" />
+        <mxCell id="LEGEND-1" value="Компоненты трейсинга выделены красным цветом" style="text;html=1;strokeColor=#C0392B;fillColor=#E74C3C;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontColor=#ffffff;fontSize=14;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="80" y="1240" width="220" height="50" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
