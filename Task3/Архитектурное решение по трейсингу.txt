@@ -133,6 +133,9 @@ IV. Предлагаемое решение
  --------------------
  Для системы "Александрит" предлагается реализовать распределенный трейсинг на базе стандарта OpenTelemetry с использованием следующего стека:
 
+ Ссылка на обновлённую C4-диаграмму контейнеров с трейсинговыми компонентами (выделенные красным цветом):
+  https://github.com/kotenev/architecture-pro-alexandrite/blob/alexandrite/Task3/jewerly_c4_model_with_tracing.xml.drawio
+
  Компоненты решения:
 
   а) OpenTelemetry SDK: для инструментирования всех сервисов;
@@ -357,21 +360,21 @@ IV. Предлагаемое решение
  План внедрения
  ==============
 
-  Phase 1 (2 недели) - MVP:
+  Первый этап (2 недели) - MVP:
   -------------------------
 
    Развертывание Jaeger и OpenTelemetry Collector
    Инструментирование Shop API и MES API
    Базовая визуализация трейсов
 
-  Phase 2 (2 недели) - Full Coverage:
+  Второй этап (2 недели) - Full Coverage:
   -----------------------------------
 
    Инструментирование CRM API
    Добавление frontend трейсинга
    Интеграция с RabbitMQ
 
-  Phase 3 (1 неделя) - Production Ready:
+  Третий этап (1 неделя) - Production Ready:
   --------------------------------------
 
    Настройка сэмплинга
@@ -379,7 +382,7 @@ IV. Предлагаемое решение
    Security и access control
    Documentation и обучение команды
 
-  Phase 4 (2 недели) - Advanced Features (опционально):
+  Четвёртый этап (2 недели) - Advanced Features (опционально):
   -----------------------------------------------------
 
    Автоматический алертинг
@@ -400,7 +403,7 @@ IV. Предлагаемое решение
    Jaeger UI;
    Connections от всех сервисов к Collector.
 
-  Автоматический мониторинг - доп. задание:
+  Автоматический мониторинг - дополнительное задание:
 
    Alert Manager;
    Order State Monitor;
@@ -525,10 +528,10 @@ VI. Безопасность
   PII Filtering:
 
    Автоматическое удаление чувствительных данных из спанов:
-    Email addresses
-    Phone numbers
-    Credit card numbers
-    Personal addresses
+    а) email addresses;
+    б) phone numbers;
+    в) credit card numbers;
+    г) personal addresses.
 
   Пример фильтра:
   --------------------------------
@@ -546,10 +549,10 @@ VI. Безопасность
  4. Audit Logging:
 
   Логирование доступа:
-    - Кто и когда открывал Jaeger UI
-    - Какие трейсы просматривались
-    - Кто экспортировал данные
-    - Изменения в конфигурации
+    - кто и когда открывал Jaeger UI;
+    - какие трейсы просматривались;
+    - кто экспортировал данные;
+    - изменения в конфигурации.
 
   Retention: 1 год
   Storage: Separate audit log system
@@ -557,46 +560,46 @@ VI. Безопасность
  5. Rate Limiting:
 
   Защита от DDoS и abuse:
-    - Max 100 запросов/минуту на пользователя к Jaeger API
-    - Max 10 экспортов/час на пользователя
-    - Automatic blocking при превышении
+    - max 100 запросов/минуту на пользователя к Jaeger API;
+    - max 10 экспортов/час на пользователя;
+    - automatic blocking при превышении.
 
  6. Secrets Management:
 
-  Все credentials хранятся в HashiCorp Vault:
-    - Jaeger database passwords
-    - Elasticsearch credentials
-    - OAuth client secrets
-    - Encryption keys
+  а) все credentials хранятся в HashiCorp Vault:
+    - Jaeger database passwords;
+    - Elasticsearch credentials;
+    - OAuth client secrets;
+    - encryption keys.
 
-  Ротация credentials: каждые 90 дней
+  б) ротация credentials каждые 90 дней.
 
  7. Data Retention & Deletion:
 
-  Compliance с GDPR:
-    - Right to be forgotten: удаление всех трейсов пользователя по запросу
-    - Data minimization: сбор только необходимых данных
-    - Автоматическое удаление по истечении retention period
+  Compliance:
+    - right to be forgotten: удаление всех трейсов пользователя по запросу;
+    - data minimization: сбор только необходимых данных;
+    - автоматическое удаление по истечении retention period.
 
  8. External Access (для B2B клиентов - опционально):
 
   Если B2B клиенты хотят видеть трейсы своих заказов:
 
     Отдельный Jaeger tenant:
-      - Изолированные данные
-      - Доступ только к собственным заказам
-      - Filter по customer_id на уровне query service
-      - Отдельный subdomain: traces-customer.alexandrite.com
+      - изолированные данные
+      - доступ только к собственным заказам
+      - filter по customer_id на уровне query service
+      - отдельный subdomain: traces-customer.alexandrite.com
       - API-key based authentication
-      - Rate limiting: 10 req/min
+      - rate limiting: 10 req/min
 
  9. Monitoring системы трейсинга:
 
   Self-monitoring:
-    - Алерты на unauthorized access attempts
-    - Алерты на аномальное количество запросов
-    - Алерты на попытки доступа к чужим данным
-    - Dashboard с security metrics
+    - алерты на unauthorized access attempts
+    - алерты на аномальное количество запросов
+    - алерты на попытки доступа к чужим данным
+    - dashboard с security metrics
 
  10. Security Checklist для Production:
 
@@ -611,21 +614,13 @@ VI. Безопасность
    [ ] Penetration testing проведен
    [ ] Incident response plan готов
 
-Заключение
+VII. Дополнительное задание. Автоматический мониторинг процесса прохождения заказа и алертинг.
 
- Внедрение распределенного трейсинга в систему "Александрит" является критически важным шагом для решения текущих проблем с потерей заказов и непрозрачностью процессов. Предложенное решение на базе OpenTelemetry и Jaeger обеспечит:
+ Ссылка на обновлённую C4-диаграмму контейнеров с компонентами мониторинга и алертинга (выделенные зелёным цветом):
+  https://github.com/kotenev/architecture-pro-alexandrite/blob/alexandrite/Task3/jewerly_c4_model_with_tracing_and_monitoring.xml.drawio
 
- Видимость - полная прозрачность пути заказа через все системы
- Быструю диагностику - сокращение MTTR с дней до часов
- Проактивный мониторинг - автоматическое обнаружение проблем
- Масштабируемость - готовность к росту нагрузки
- Безопасность - защита чувствительных данных
+ Компоненты автоматический мониторинга:
 
- Поэтапное внедрение (4 фазы за 7 недель) минимизирует риски и позволит команде постепенно освоить новую технологию.
-
- Ссылка на обновленную C4 диаграмму компонентов с трейсингом:
- jewerly_c4_model_tracing.drawio
-
-Были добавлены:
- - компоненты базового трейсинга
- - компоненты автоматического мониторинга и алертинга
+    а) alert Manager;
+    б) order State Monitor;
+    в) connections к системам оповещения.
