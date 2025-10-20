@@ -1,0 +1,87 @@
+@startuml Комплексная диаграмма кеширования списка заказов
+title Комплексная диаграмма: Чтение, изменение статуса и кеширование заказов
+
+actor "Оператор" as Operator
+participant "MES Frontend" as Frontend
+participant "MES Backend API" as Backend
+participant "Redis" as Cache
+database "PostgreSQL\n(MES DB)" as DB
+queue "RabbitMQ" as MQ
+participant "Consumer" as Consumer
+
+== Сценарий 1: Первоначальное чтение списка заказов (Кеш пуст) ==
+
+Operator -> Frontend: Запросить список заказов в статусе 'APPROVED'
+Frontend -> Backend: GET /api/orders?status=APPROVED&page=1
+Backend -> Cache: GET orders:list:APPROVED:1:20
+Cache --> Backend: null (Cache Miss)
+
+note right of Backend
+  **Процесс кеширования (Cache-Aside):**
+  1. Попытка чтения из кеша.
+  2. При промахе (miss) - чтение из основного хранилища (БД).
+end note
+
+Backend -> DB: SELECT * FROM orders\nWHERE status='APPROVED'\nLIMIT 20 OFFSET 0
+DB --> Backend: Список заказов
+
+note right of Backend
+  3. Запись полученных данных в кеш для будущих запросов.
+end note
+
+Backend -> Cache: SET orders:list:APPROVED:1:20 [JSON data] EX 60
+Cache --> Backend: OK
+Backend --> Frontend: Список заказов (200 OK)
+Frontend --> Operator: Отображение списка заказов
+
+== Сценарий 2: Оператор изменяет статус заказа ==
+
+Operator -> Frontend: Взять заказ в работу (orderId: 123)
+Frontend -> Backend: POST /api/orders/123/start
+Backend -> DB: UPDATE orders SET status='STARTED' WHERE id=123
+DB --> Backend: OK (1 row affected)
+
+note right of Backend
+  **Процесс инвалидации кеша (Событийный):**
+  После изменения данных в БД, публикуется событие.
+  Это позволяет асинхронно и надежно инвалидировать кеш.
+end note
+
+Backend -> MQ: Publish [OrderStatusChanged]\n{orderId:123, old:'APPROVED', new:'STARTED'}
+Backend --> Frontend: Успешно (200 OK)
+Frontend --> Operator: Заказ взят в работу
+
+== Сценарий 3: Асинхронная инвалидация кеша ==
+
+group Асинхронная обработка в фоне
+    MQ -> Consumer: Consume [OrderStatusChanged]
+    Consumer -> Cache: DEL orders:list:APPROVED:*
+    Cache --> Consumer: (integer) 1
+    Consumer -> Cache: DEL orders:list:STARTED:*
+    Cache --> Consumer: (integer) 1
+end group
+
+note right of Consumer
+  **Сущности, участвующие в кешировании:**
+  - **MES Backend API:** Основное приложение, реализующее логику Cache-Aside.
+  - **Redis:** Внешнее хранилище кеша.
+  - **PostgreSQL:** Основная база данных, источник правды.
+  - **RabbitMQ:** Брокер сообщений для организации событийной инвалидации.
+  - **Consumer:** Обработчик, который выполняет фактическую очистку кеша.
+end note
+
+== Сценарий 4: Повторное чтение списка заказов (Кеш инвалидирован) ==
+
+Operator -> Frontend: Обновить список заказов в статусе 'APPROVED'
+Frontend -> Backend: GET /api/orders?status=APPROVED&page=1
+Backend -> Cache: GET orders:list:APPROVED:1:20
+Cache --> Backend: null (Cache Miss из-за инвалидации)
+
+Backend -> DB: SELECT * FROM orders\nWHERE status='APPROVED'...
+DB --> Backend: Актуальный список заказов
+Backend -> Cache: SET orders:list:APPROVED:1:20 [JSON data] EX 60
+Cache --> Backend: OK
+Backend --> Frontend: Обновленный список заказов
+Frontend --> Operator: Отображение актуального списка
+
+@enduml
