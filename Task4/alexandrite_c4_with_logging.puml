@@ -1,0 +1,90 @@
+@startuml Container_diagram_for_Alexandrite_Jewelry_System_with_Logging_Infrastructure
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+AddElementTag("logging", $bgColor="#FF0000", $fontColor="#FFFFFF", $borderColor="#CC0000", $borderThickness="3")
+AddRelTag("logging", $lineColor="#FF0000", $lineThickness="2")
+AddRelTag("loggingDashed", $lineColor="#FF0000", $lineStyle="DashedLine()")
+
+title Container diagram for Alexandrite Jewelry System with Logging Infrastructure
+
+Person(customer, "Customer", "Orders jewelry online through the web shop")
+Person(seller, "Seller", "Manages orders, confirms manufacturing")
+Person(operator, "Operator", "Takes orders, manufactures jewelry")
+Person(api_user, "API User", "External B2B partner using API")
+Person(devops, "DevOps/Support", "Analyzes logs, sets up alerts, monitors system health", $tags="logging")
+
+System_Ext(smart_device, "Transport Company", "Delivers finished orders to customers")
+
+System_Boundary(alexandrite, "Alexandrite Jewelry Store System") {
+
+    Container(shop_frontend, "Internet Shop", "Vue, TypeScript, Three.js", "User can make an order, upload 3D model, work in 3D editor")
+    Container(crm_frontend, "CRM", "Vue, TypeScript", "Sales management interface for sellers")
+    Container(mes_frontend, "MES", "React, TypeScript", "Production interface to assign orders to operators")
+    
+    Container(shop_api, "Shop API", "Spring Boot", "Provides list of shop items, receives 3D files, saves order information")
+    Container(crm_api, "CRM API", "Spring Boot", "Manages orders, confirmations, customer data")
+    Container(mes_api, "MES API", "C#", "Assigns orders to operators, shows list of orders, calculates price")
+    
+    ContainerDb(shop_db, "Shop DB", "PostgreSQL", "Holds order information from customer perspective")
+    ContainerDb(crm_db, "CRM DB", "PostgreSQL", "Holds customer and order data")
+    ContainerDb(mes_db, "MES DB", "PostgreSQL", "Holds orders, assignments, and statuses from production perspective")
+    
+    ContainerQueue(rabbitmq, "Message Queue", "RabbitMQ", "Sends messages about new orders, status changes between containers")
+    
+    ContainerDb(file_storage, "3D File Storage", "S3", "Stores 3D model files")
+    
+    Container(fluent_shop, "Fluent Bit Agent", "Fluent Bit", "Collects logs from Shop API", $tags="logging")
+    Container(fluent_crm, "Fluent Bit Agent", "Fluent Bit", "Collects logs from CRM API", $tags="logging")
+    Container(fluent_mes, "Fluent Bit Agent", "Fluent Bit", "Collects logs from MES API", $tags="logging")
+    Container(fluent_rabbitmq, "Fluent Bit Agent", "Fluent Bit", "Collects logs from RabbitMQ", $tags="logging")
+    
+    Container(opensearch_master, "OpenSearch Master Node", "OpenSearch 2.x", "Cluster coordination, index management, metadata storage", $tags="logging")
+    Container(opensearch_data1, "OpenSearch Data Node 1", "OpenSearch 2.x", "Stores and indexes log data, executes search queries", $tags="logging")
+    Container(opensearch_data2, "OpenSearch Data Node 2", "OpenSearch 2.x", "Stores and indexes log data, executes search queries", $tags="logging")
+    
+    Container(opensearch_dashboards, "OpenSearch Dashboards", "OpenSearch Dashboards", "Visualization, search, alerting, anomaly detection UI", $tags="logging")
+}
+
+Rel(customer, shop_frontend, "Orders jewelry, uploads 3D models", "HTTPS")
+Rel(seller, crm_frontend, "Manages orders, confirms production", "HTTPS")
+Rel(operator, mes_frontend, "Takes orders, manufactures jewelry", "HTTPS")
+Rel(api_user, mes_api, "Creates orders via API", "HTTPS/JSON")
+Rel(devops, opensearch_dashboards, "Analyzes logs, creates dashboards, sets up alerts", "HTTPS", $tags="logging")
+
+Rel(shop_frontend, shop_api, "Sends API requests", "HTTPS/JSON")
+Rel(crm_frontend, crm_api, "Sends API requests", "HTTPS/JSON")
+Rel(mes_frontend, mes_api, "Sends API requests", "HTTPS/JSON")
+
+Rel(shop_api, shop_db, "Reads/writes order data", "TCP/IP")
+Rel(crm_api, crm_db, "Reads/writes customer and order data", "TCP/IP")
+Rel(mes_api, mes_db, "Reads/writes production data", "TCP/IP")
+
+Rel(shop_api, file_storage, "Uploads 3D model files", "HTTPS/S3")
+Rel(mes_api, file_storage, "Reads 3D model files for price calculation", "HTTPS/S3")
+
+Rel(shop_api, rabbitmq, "Sends order for price calculation", "AMQP")
+Rel(crm_api, rabbitmq, "Sends/receives order status updates", "AMQP")
+Rel(mes_api, rabbitmq, "Receives orders, sends status updates", "AMQP")
+
+Rel(mes_api, smart_device, "Sends shipping notifications", "HTTPS")
+
+Rel(shop_api, fluent_shop, "Sends logs (JSON structured)", "stdout/file", $tags="logging")
+Rel(crm_api, fluent_crm, "Sends logs (JSON structured)", "stdout/file", $tags="logging")
+Rel(mes_api, fluent_mes, "Sends logs (JSON structured)", "stdout/file", $tags="logging")
+Rel(rabbitmq, fluent_rabbitmq, "Sends logs", "stdout/file", $tags="logging")
+
+Rel(fluent_shop, opensearch_data1, "Forwards logs", "HTTPS/JSON", $tags="logging")
+Rel(fluent_crm, opensearch_data1, "Forwards logs", "HTTPS/JSON", $tags="logging")
+Rel(fluent_mes, opensearch_data2, "Forwards logs", "HTTPS/JSON", $tags="logging")
+Rel(fluent_rabbitmq, opensearch_data2, "Forwards logs", "HTTPS/JSON", $tags="logging")
+
+Rel(opensearch_master, opensearch_data1, "Cluster coordination, replication", "TCP/IP", $tags="loggingDashed")
+Rel(opensearch_master, opensearch_data2, "Cluster coordination, replication", "TCP/IP", $tags="loggingDashed")
+Rel(opensearch_data1, opensearch_data2, "Data replication", "TCP/IP", $tags="loggingDashed")
+
+Rel(opensearch_data1, opensearch_dashboards, "Query and visualize logs", "HTTPS", $tags="logging")
+Rel(opensearch_data2, opensearch_dashboards, "Query and visualize logs", "HTTPS", $tags="logging")
+
+SHOW_LEGEND()
+
+@enduml
